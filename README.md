@@ -1,4 +1,4 @@
-Advent of Code 2020
+Advent of Code 2021
 ===================
 
 These are solutions for the [Advent of Code 2021](https://adventofcode.com/2021).
