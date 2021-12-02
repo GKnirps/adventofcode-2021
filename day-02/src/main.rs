@@ -22,8 +22,16 @@ fn main() -> Result<(), String> {
 
     let instructions = parse_instructions(&content)?;
 
-    let (x, y) = solve_puzzle_one(&instructions);
-    println!("Position is ({}, {}), product is {}", x, y, x * y);
+    let (p1x, p1y) = solve_puzzle_one(&instructions);
+    println!("Position is ({}, {}), product is {}", p1x, p1y, p1x * p1y);
+
+    let (p2x, p2y) = solve_puzzle_two(&instructions);
+    println!(
+        "Position with aim is ({}, {}), product is {}",
+        p2x,
+        p2y,
+        p2x * p2y
+    );
 
     Ok(())
 }
@@ -35,6 +43,17 @@ fn solve_puzzle_one(instructions: &[Instruction]) -> (i32, i32) {
             Direction::Horizontal => (x + value, y),
             Direction::Vertical => (x, y + value),
         })
+}
+
+fn solve_puzzle_two(instructions: &[Instruction]) -> (i32, i32) {
+    let (x, y, _) = instructions.iter().fold(
+        (0, 0, 0),
+        |(x, y, aim), Instruction { dir, value }| match dir {
+            Direction::Vertical => (x, y, aim + value),
+            Direction::Horizontal => (x + value, y + aim * value, aim),
+        },
+    );
+    (x, y)
 }
 
 fn parse_instructions(content: &str) -> Result<Vec<Instruction>, String> {
@@ -125,5 +144,26 @@ forward 2",
         // then
         assert_eq!(x, 15);
         assert_eq!(y, 10);
+    }
+
+    #[test]
+    fn solve_puzzle_two_works_with_example() {
+        // given
+        let instructions = parse_instructions(
+            r"forward 5
+down 5
+forward 8
+up 3
+down 8
+forward 2",
+        )
+        .expect("Expected valid instructions");
+
+        // when
+        let (x, y) = solve_puzzle_two(&instructions);
+
+        // then
+        assert_eq!(x, 15);
+        assert_eq!(y, 60);
     }
 }
