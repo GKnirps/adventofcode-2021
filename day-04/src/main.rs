@@ -9,10 +9,17 @@ fn main() -> Result<(), String> {
     let content = read_to_string(&Path::new(&filename)).map_err(|e| e.to_string())?;
     let (random, cards) = parse(&content)?;
 
-    if let Some(score) = play_bingo(cards, &random) {
+    if let Some(score) = play_bingo(cards.clone(), &random) {
         println!("The winning score is {}", score);
     } else {
         println!("There is no winner");
+    }
+
+    // this is truly the worst bingo
+    if let Some(score) = play_worst_bingo(cards, &random) {
+        println!("The losing score is {}", score);
+    } else {
+        println!("There is no worst card that wins at some point");
     }
 
     Ok(())
@@ -26,6 +33,19 @@ fn play_bingo(mut cards: Vec<Card>, random: &[u8]) -> Option<u32> {
                 return Some(score(card, *number));
             }
         }
+    }
+    None
+}
+
+fn play_worst_bingo(mut cards: Vec<Card>, random: &[u8]) -> Option<u32> {
+    for number in random {
+        for card in cards.iter_mut() {
+            mark_number(card, *number);
+        }
+        if cards.len() == 1 && card_has_won(&cards[0]) {
+            return Some(score(&cards[0], *number));
+        }
+        cards.retain(|card| !card_has_won(card));
     }
     None
 }
@@ -159,6 +179,18 @@ mod test {
 
         // then
         assert_eq!(score, None);
+    }
+
+    #[test]
+    fn play_worst_bingo_works_for_example() {
+        // given
+        let (random, cards) = parse(EXAMPLE_INPUT).expect("Expected successful parsing");
+
+        // when
+        let score = play_worst_bingo(cards, &random);
+
+        // then
+        assert_eq!(score, Some(1924));
     }
 
     #[test]
