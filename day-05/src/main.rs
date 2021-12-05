@@ -1,4 +1,3 @@
-use std::cmp;
 use std::env;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -12,26 +11,21 @@ fn main() -> Result<(), String> {
 
     let overlaps = solve_puzzle_one(&lines);
     println!(
-        "There are {} overlaps (counting only horizontal and vertical lines)",
+        "There are {} overlaps (counting only horizontal and vertical lines).",
         overlaps
+    );
+
+    let more_overlaps = solve_puzzle_two(&lines);
+    println!(
+        "There are {} overlaps when also counting diagonal lines.",
+        more_overlaps
     );
 
     Ok(())
 }
 
 fn solve_puzzle_one(lines: &[Line]) -> usize {
-    let size_x = lines
-        .iter()
-        .flat_map(|Line { from_x, to_x, .. }| [*from_x, *to_x])
-        .max()
-        .unwrap_or(0)
-        + 1;
-    let size_y = lines
-        .iter()
-        .flat_map(|Line { from_y, to_y, .. }| [*from_y, *to_y])
-        .max()
-        .unwrap_or(0)
-        + 1;
+    let (size_x, size_y) = map_size(lines);
 
     // primitive approach: just paint all the lines and count crossings
     let mut map: Vec<u32> = vec![0; size_x * size_y];
@@ -45,10 +39,8 @@ fn solve_puzzle_one(lines: &[Line]) -> usize {
     ) {
         // if not for the filter above, this would draw a rectangle. However, we filter out
         // everything where this does not lead to a line, so we're fine here
-        let from_x = cmp::min(line.from_x, line.to_x);
-        let to_x = cmp::max(line.from_x, line.to_x);
-        let from_y = cmp::min(line.from_y, line.to_y);
-        let to_y = cmp::max(line.from_y, line.to_y);
+        let (from_x, to_x) = minmax(line.from_x, line.to_x);
+        let (from_y, to_y) = minmax(line.from_y, line.to_y);
         for y in from_y..=to_y {
             for x in from_x..=to_x {
                 map[x + y * size_x] += 1;
@@ -57,6 +49,85 @@ fn solve_puzzle_one(lines: &[Line]) -> usize {
     }
 
     map.iter().filter(|n| **n > 1).count()
+}
+
+fn solve_puzzle_two(lines: &[Line]) -> usize {
+    let (size_x, size_y) = map_size(lines);
+
+    // again the primitive approach: just paint all the lines and count crossings
+    let mut map: Vec<u32> = vec![0; size_x * size_y];
+
+    // first all horizontal and vertical lines (copied from puzzle 1)
+    for line in lines.iter().filter(
+        |Line {
+             from_x,
+             from_y,
+             to_x,
+             to_y,
+         }| from_x == to_x || from_y == to_y,
+    ) {
+        // if not for the filter above, this would draw a rectangle. However, we filter out
+        // everything where this does not lead to a line, so we're fine here
+        let (from_x, to_x) = minmax(line.from_x, line.to_x);
+        let (from_y, to_y) = minmax(line.from_y, line.to_y);
+        for y in from_y..=to_y {
+            for x in from_x..=to_x {
+                map[x + y * size_x] += 1;
+            }
+        }
+    }
+
+    // then all diagonal lines
+    for line in lines.iter().filter(
+        |Line {
+             from_x,
+             from_y,
+             to_x,
+             to_y,
+         }| {
+            let (xl, xr) = minmax(*from_x, *to_x);
+            let (yl, yr) = minmax(*from_y, *to_y);
+            xr - xl == yr - yl
+        },
+    ) {
+        let x_step: isize = if line.from_x < line.to_x { 1 } else { -1 };
+        let y_step: isize = if line.from_y < line.to_y { 1 } else { -1 };
+        let mut dy = line.from_y;
+        let mut dx = line.from_x;
+        while dy != line.to_y && dx != line.to_x {
+            map[dx + dy * size_x] += 1;
+            dx = (dx as isize + x_step) as usize;
+            dy = (dy as isize + y_step) as usize;
+        }
+        map[dx + dy * size_x] += 1;
+    }
+
+    map.iter().filter(|n| **n > 1).count()
+}
+
+fn map_size(lines: &[Line]) -> (usize, usize) {
+    (
+        lines
+            .iter()
+            .flat_map(|Line { from_x, to_x, .. }| [*from_x, *to_x])
+            .max()
+            .unwrap_or(0)
+            + 1,
+        lines
+            .iter()
+            .flat_map(|Line { from_y, to_y, .. }| [*from_y, *to_y])
+            .max()
+            .unwrap_or(0)
+            + 1,
+    )
+}
+
+fn minmax(a: usize, b: usize) -> (usize, usize) {
+    if a < b {
+        (a, b)
+    } else {
+        (b, a)
+    }
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
@@ -143,5 +214,17 @@ mod test {
 
         // then
         assert_eq!(overlaps, 5);
+    }
+
+    #[test]
+    fn solve_puzzle_two_works_for_example() {
+        // given
+        let lines = parse_lines(EXAMPLE_INPUT).expect("Expected successful parsing");
+
+        // when
+        let overlaps = solve_puzzle_two(&lines);
+
+        // then
+        assert_eq!(overlaps, 12);
     }
 }
