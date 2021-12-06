@@ -12,18 +12,21 @@ fn main() -> Result<(), String> {
     let population_80 = run_days(initial_pop, 80);
     println!("After 80 days, there are {} lanternfish", population_80);
 
+    let population_256 = run_days(initial_pop, 256);
+    println!("After 256 days, there are {} lanternfish", population_256);
+
     Ok(())
 }
 
-fn run_days(mut population: [u32; 9], days: usize) -> u32 {
+fn run_days(mut population: [u64; 9], days: usize) -> u64 {
     for _ in 0..days {
         population = next_day(population);
     }
     population.iter().sum()
 }
 
-fn next_day(population: [u32; 9]) -> [u32; 9] {
-    let mut next_pop: [u32; 9] = [0; 9];
+fn next_day(population: [u64; 9]) -> [u64; 9] {
+    let mut next_pop: [u64; 9] = [0; 9];
 
     for i in 0..7 {
         next_pop[i] = population[(i + 1) % 7];
@@ -35,8 +38,8 @@ fn next_day(population: [u32; 9]) -> [u32; 9] {
     next_pop
 }
 
-fn parse_population_by_timer(input: &str) -> Result<[u32; 9], String> {
-    let mut pop: [u32; 9] = [0; 9];
+fn parse_population_by_timer(input: &str) -> Result<[u64; 9], String> {
+    let mut pop: [u64; 9] = [0; 9];
     for result in input.split(',').map(|s| {
         s.trim()
             .parse::<usize>()
