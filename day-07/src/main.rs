@@ -15,6 +15,12 @@ fn main() -> Result<(), String> {
         alignment_fuel
     );
 
+    let squared_fuel = brute_force_squared_cost_alignment(&initial_positions);
+    println!(
+        "The minimal total fuel usage for the squared cost is {}",
+        squared_fuel
+    );
+
     Ok(())
 }
 
@@ -37,6 +43,31 @@ fn brute_force_alignment(positions: &[u32]) -> u32 {
         })
         .min()
         .unwrap_or(0)
+}
+
+fn brute_force_squared_cost_alignment(positions: &[u32]) -> u32 {
+    let min: u32 = positions.iter().min().copied().unwrap_or(0);
+    let max: u32 = positions.iter().max().copied().unwrap_or(0);
+
+    (min..=max)
+        .map(|align_pos| {
+            positions
+                .iter()
+                .map(|pos| {
+                    if *pos < align_pos {
+                        fuel_usage(align_pos - pos)
+                    } else {
+                        fuel_usage(pos - align_pos)
+                    }
+                })
+                .sum()
+        })
+        .min()
+        .unwrap_or(0)
+}
+
+fn fuel_usage(distance: u32) -> u32 {
+    ((distance + 1) * distance) / 2
 }
 
 fn parse(input: &str) -> Result<Vec<u32>, String> {
@@ -64,5 +95,17 @@ mod test {
 
         // then
         assert_eq!(fuel, 37);
+    }
+
+    #[test]
+    fn brute_force_squared_cost_alignment_works_for_example() {
+        // given
+        let positions = parse("16,1,2,0,4,2,7,1,2,14\n").expect("Expected successful parsing");
+
+        // when
+        let fuel = brute_force_squared_cost_alignment(&positions);
+
+        // then
+        assert_eq!(fuel, 168);
     }
 }
