@@ -12,6 +12,12 @@ fn main() -> Result<(), String> {
     let risk = get_low_points_risk_level(&height_map);
     println!("Sum of risk levels on low points is {}", risk);
 
+    let basin_product = fill_basins(&height_map)?;
+    println!(
+        "Product of the size of the three largest basins: {}",
+        basin_product
+    );
+
     Ok(())
 }
 
@@ -54,25 +60,79 @@ fn right(i: usize, height_map: &HeightMap) -> Option<(usize, u8)> {
     }
 }
 
+fn fill_basins(height_map: &HeightMap) -> Result<u32, String> {
+    // turns out a simple Vec<bool> would be sufficient, but I leave this in in case I want to make
+    // a visualization of the basins
+    let mut basin_map: Vec<Option<usize>> = vec![None; height_map.values.len()];
+    let mut stack: Vec<usize> = Vec::with_capacity(height_map.values.len());
+    let mut basin_sizes: Vec<u32> = Vec::with_capacity(height_map.values.len());
+
+    for i in 0..height_map.values.len() {
+        if basin_map[i].is_some() {
+            continue;
+        }
+        if is_low_point(i, height_map) {
+            let mut basin_size: u32 = 0;
+            stack.push(i);
+            while let Some(index) = stack.pop() {
+                if basin_map[index].is_some() {
+                    continue;
+                }
+                basin_size += 1;
+                basin_map[index] = Some(basin_sizes.len());
+                for (neighbour_i, neighbour_v) in [
+                    top(index, height_map),
+                    bottom(index, height_map),
+                    left(index, height_map),
+                    right(index, height_map),
+                ]
+                .into_iter()
+                .flatten()
+                {
+                    if neighbour_v < 9 {
+                        stack.push(neighbour_i);
+                    }
+                }
+            }
+            basin_sizes.push(basin_size);
+        }
+    }
+    if basin_sizes.len() < 3 {
+        return Err(format!(
+            "Found only {} basins, need at least 3",
+            basin_sizes.len()
+        ));
+    }
+    basin_sizes.sort_unstable();
+    Ok(basin_sizes[basin_sizes.len() - 3..basin_sizes.len()]
+        .iter()
+        .product())
+}
+
+fn is_low_point(i: usize, height_map: &HeightMap) -> bool {
+    if i >= height_map.values.len() {
+        false
+    } else {
+        let value = height_map.values[i];
+        [
+            top(i, height_map),
+            bottom(i, height_map),
+            left(i, height_map),
+            right(i, height_map),
+        ]
+        .into_iter()
+        .flatten()
+        .all(|(_, v)| v > value)
+    }
+}
+
 fn get_low_points_risk_level(height_map: &HeightMap) -> u32 {
     height_map
         .values
         .iter()
         .copied()
         .enumerate()
-        .filter(|(i, value)| {
-            let i = *i;
-            let value = *value;
-            [
-                top(i, height_map),
-                bottom(i, height_map),
-                left(i, height_map),
-                right(i, height_map),
-            ]
-            .into_iter()
-            .flatten()
-            .all(|(_, v)| v > value)
-        })
+        .filter(|(i, _)| is_low_point(*i, height_map))
         .map(|(_, v)| v as u32 + 1)
         .sum()
 }
@@ -140,6 +200,18 @@ mod test {
 8767896789
 9899965678
 ";
+
+    #[test]
+    fn fill_basins_works_for_example() {
+        // given
+        let height_map = parse(EXAMPLE_INPUT).expect("Expected successful parsing");
+
+        // when
+        let result = fill_basins(&height_map);
+
+        // then
+        assert_eq!(result, Ok(1134));
+    }
 
     #[test]
     fn get_low_points_risk_level_works_for_example() {
