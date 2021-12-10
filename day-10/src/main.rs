@@ -12,14 +12,23 @@ fn main() -> Result<(), String> {
     let score = corruption_score(&lines);
     println!("The corruption score is {}", score);
 
+    let completion = completion_score(&lines);
+    println!("The completion score is {}", completion);
+
     Ok(())
 }
 
 fn corruption_score(lines: &[&str]) -> u32 {
-    lines.iter().copied().filter_map(first_corruption).sum()
+    lines.iter().filter_map(|line| verify(*line).err()).sum()
 }
 
-fn first_corruption(line: &str) -> Option<u32> {
+fn completion_score(lines: &[&str]) -> u64 {
+    let mut scores: Vec<u64> = lines.iter().filter_map(|line| verify(*line).ok()).collect();
+    scores.sort_unstable();
+    scores.get(scores.len() / 2).copied().unwrap_or(0)
+}
+
+fn verify(line: &str) -> Result<u64, u32> {
     let mut stack: Vec<char> = Vec::with_capacity(line.len());
     for c in line.chars() {
         match c {
@@ -27,32 +36,40 @@ fn first_corruption(line: &str) -> Option<u32> {
             ')' => match stack.pop() {
                 Some('(') => (),
                 _ => {
-                    return Some(3);
+                    return Err(3);
                 }
             },
             ']' => match stack.pop() {
                 Some('[') => (),
                 _ => {
-                    return Some(57);
+                    return Err(57);
                 }
             },
             '}' => match stack.pop() {
                 Some('{') => (),
                 _ => {
-                    return Some(1197);
+                    return Err(1197);
                 }
             },
             '>' => match stack.pop() {
                 Some('<') => (),
                 _ => {
-                    return Some(25137);
+                    return Err(25137);
                 }
             },
             _ => (),
         }
     }
-    // line may be incomplete, but we may ignore those lines for now
-    None
+    Ok(stack.iter().rev().fold(0, |score, c| {
+        score * 5
+            + match c {
+                '(' => 1,
+                '[' => 2,
+                '{' => 3,
+                '<' => 4,
+                _ => 0,
+            }
+    }))
 }
 
 #[cfg(test)]
@@ -81,5 +98,17 @@ mod test {
 
         // then
         assert_eq!(score, 26397);
+    }
+
+    #[test]
+    fn completion_score_works_for_example() {
+        // given
+        let lines: Vec<&str> = EXAMPLE_INPUT.lines().collect();
+
+        // when
+        let score = completion_score(&lines);
+
+        // then
+        assert_eq!(score, 288957);
     }
 }
