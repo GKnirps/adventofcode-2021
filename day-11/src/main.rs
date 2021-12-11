@@ -10,10 +10,16 @@ fn main() -> Result<(), String> {
     let content = read_to_string(&Path::new(&filename)).map_err(|e| e.to_string())?;
     let initial_map = parse(&content)?;
 
-    let flashes_after_100 = run_steps(initial_map, 100);
+    let flashes_after_100 = run_steps(initial_map.clone(), 100);
     println!(
         "After 100 steps, there have been {} flashes in total",
         flashes_after_100
+    );
+
+    let steps_until_sync = run_until_sync(initial_map);
+    println!(
+        "After {} steps, all octopuses flash in sync",
+        steps_until_sync
     );
 
     Ok(())
@@ -27,6 +33,18 @@ fn run_steps(mut octo_map: OctoMap, n_steps: u64) -> u64 {
         flash_counter += flashes;
     }
     flash_counter
+}
+
+fn run_until_sync(mut octo_map: OctoMap) -> u64 {
+    let mut counter = 0;
+    let mut flashes = 0;
+    while flashes < octo_map.energy.len() as u64 {
+        let (next_octo_map, f) = run_step(octo_map);
+        flashes = f;
+        octo_map = next_octo_map;
+        counter += 1;
+    }
+    counter
 }
 
 fn run_step(mut octo_map: OctoMap) -> (OctoMap, u64) {
@@ -133,11 +151,7 @@ fn parse(content: &str) -> Result<OctoMap, String> {
 mod test {
     use super::*;
 
-    #[test]
-    fn run_steps_works_for_example() {
-        // given
-        let before = parse(
-            r"5483143223
+    const EXAMPLE_INPUT: &str = r"5483143223
 2745854711
 5264556173
 6141336146
@@ -147,15 +161,29 @@ mod test {
 6882881134
 4846848554
 5283751526
-",
-        )
-        .expect("expected successful parsing");
+";
+    #[test]
+    fn run_steps_works_for_example() {
+        // given
+        let before = parse(EXAMPLE_INPUT).expect("expected successful parsing");
 
         // when
         let flashes = run_steps(before, 100);
 
         // then
         assert_eq!(flashes, 1656);
+    }
+
+    #[test]
+    fn run_until_sync_works_for_example() {
+        // given
+        let before = parse(EXAMPLE_INPUT).expect("expected successful parsing");
+
+        // when
+        let steps = run_until_sync(before);
+
+        // then
+        assert_eq!(steps, 195);
     }
 
     #[test]
