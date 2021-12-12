@@ -11,11 +11,14 @@ fn main() -> Result<(), String> {
 
     let edges = parse_edges(&content)?;
 
-    let all_paths = find_all_paths(&edges, vec![START_VERTICE]);
+    let all_paths = find_all_paths(&edges, vec![START_VERTICE], true);
     println!(
         "There are {} paths from start to end that visit small caves at most once",
         all_paths.len()
     );
+
+    let all_paths_puzzle_2 = find_all_paths(&edges, vec![START_VERTICE], false);
+    println!("There are {} paths from start to end that visit one small cave at most twice and other small caves at most once", all_paths_puzzle_2.len());
 
     Ok(())
 }
@@ -23,7 +26,11 @@ fn main() -> Result<(), String> {
 const START_VERTICE: &str = "start";
 const END_VERTICE: &str = "end";
 
-fn find_all_paths<'a>(edges: &'a Edges, path: Vec<&'a str>) -> Vec<Vec<&'a str>> {
+fn find_all_paths<'a>(
+    edges: &'a Edges,
+    path: Vec<&'a str>,
+    visited_small_cave_twice: bool,
+) -> Vec<Vec<&'a str>> {
     let from: &str = path.last().unwrap_or(&START_VERTICE);
     if from == END_VERTICE {
         return vec![path];
@@ -31,11 +38,28 @@ fn find_all_paths<'a>(edges: &'a Edges, path: Vec<&'a str>) -> Vec<Vec<&'a str>>
     if let Some(vertices) = edges.get(&from) {
         vertices
             .iter()
-            .filter(|vertice| is_large_cave(vertice) || !path.contains(vertice))
-            .flat_map(|vertice| {
+            .filter_map(|vertice| {
+                if is_large_cave(vertice) {
+                    Some((vertice, visited_small_cave_twice))
+                } else {
+                    let count = path.iter().filter(|v| v == &vertice).count();
+                    if count == 0 {
+                        Some((vertice, visited_small_cave_twice))
+                    } else if !visited_small_cave_twice
+                        && count == 1
+                        && vertice != &START_VERTICE
+                        && vertice != &END_VERTICE
+                    {
+                        Some((vertice, true))
+                    } else {
+                        None
+                    }
+                }
+            })
+            .flat_map(|(vertice, visited_twice)| {
                 let mut p = path.clone();
                 p.push(vertice);
-                find_all_paths(edges, p)
+                find_all_paths(edges, p, visited_twice)
             })
             .collect()
     } else {
@@ -77,23 +101,22 @@ mod test {
     use super::*;
     use std::collections::HashSet;
 
-    #[test]
-    fn find_all_paths_works_work_simple_example() {
-        // given
-        let edges = parse_edges(
-            r"start-A
+    const SIMPLE_EXAMPLE: &str = r"start-A
 start-b
 A-c
 A-b
 b-d
 A-end
 b-end
-",
-        )
-        .expect("Expected successful parsing");
+";
+
+    #[test]
+    fn find_all_paths_works_simple_example_puzzle_1() {
+        // given
+        let edges = parse_edges(SIMPLE_EXAMPLE).expect("Expected successful parsing");
 
         // when
-        let paths = find_all_paths(&edges, vec![START_VERTICE]);
+        let paths = find_all_paths(&edges, vec![START_VERTICE], true);
 
         // then
         let path_set: HashSet<Vec<&str>> = paths.into_iter().collect();
@@ -113,5 +136,17 @@ b-end
         .collect();
 
         assert_eq!(path_set, expected_paths);
+    }
+
+    #[test]
+    fn find_all_paths_works_for_simple_example_puzzle2() {
+        // given
+        let edges = parse_edges(SIMPLE_EXAMPLE).expect("Expected successful parsing");
+
+        // when
+        let paths = find_all_paths(&edges, vec![START_VERTICE], false);
+
+        // then
+        assert_eq!(paths.len(), 36);
     }
 }
