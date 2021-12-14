@@ -11,14 +11,70 @@ fn main() -> Result<(), String> {
 
     let (template, rules) = parse(&content)?;
 
-    let after_10_steps = grow_steps(template, &rules, 10);
+    let after_10_steps = grow_steps(template.clone(), &rules, 10);
     if let Some(score) = score(&after_10_steps) {
         println!("most common - least common: {}", score);
     } else {
         println!("I accidentally a polymer is this dangerous?");
     }
 
+    if let Some(score_after_40_steps) = score_after_steps(&template, &rules, 40) {
+        println!(
+            "most common - least common after 40 steps: {}",
+            score_after_40_steps
+        );
+    } else {
+        println!("There is no polymer.");
+    }
+
     Ok(())
+}
+
+fn score_after_steps(
+    template: &[char],
+    rules: &HashMap<(char, char), char>,
+    n_steps: u64,
+) -> Option<u64> {
+    let mut letter_counts: HashMap<char, u64> =
+        template
+            .iter()
+            .copied()
+            .fold(HashMap::with_capacity(template.len()), |mut lc, c| {
+                let counter = lc.entry(c).or_insert(0);
+                *counter += 1;
+                lc
+            });
+    let mut tuple_counts: HashMap<(char, char), u64> =
+        template
+            .windows(2)
+            .fold(HashMap::with_capacity(rules.len()), |mut tc, tuple| {
+                let counter = tc.entry((tuple[0], tuple[1])).or_insert(0);
+                *counter += 1;
+                tc
+            });
+
+    for _ in 0..n_steps {
+        let mut next_tuple_counts: HashMap<(char, char), u64> =
+            HashMap::with_capacity(tuple_counts.len() * 2);
+        for (tuple, tuple_count) in tuple_counts {
+            if let Some(inserted) = rules.get(&tuple).copied() {
+                let letter_count = letter_counts.entry(inserted).or_insert(0);
+                *letter_count += tuple_count;
+                let first_tuple_count = next_tuple_counts.entry((tuple.0, inserted)).or_insert(0);
+                *first_tuple_count += tuple_count;
+                let second_tuple_count = next_tuple_counts.entry((inserted, tuple.1)).or_insert(0);
+                *second_tuple_count += tuple_count;
+            } else {
+                next_tuple_counts.insert(tuple, tuple_count);
+            }
+        }
+        tuple_counts = next_tuple_counts;
+    }
+
+    let min = letter_counts.values().min()?;
+    let max = letter_counts.values().max()?;
+
+    Some(max - min)
 }
 
 fn score(polymer: &[char]) -> Option<usize> {
@@ -157,5 +213,17 @@ CN -> C
                 .chars()
                 .collect::<Vec<char>>()
         );
+    }
+
+    #[test]
+    fn score_after_steps_works_for_example() {
+        // given
+        let (template, rules) = parse(EXAMPLE_INPUT).expect("Expected successful parseing");
+
+        // when
+        let score = score_after_steps(&template, &rules, 40);
+
+        // then
+        assert_eq!(score, Some(2188189693529));
     }
 }
