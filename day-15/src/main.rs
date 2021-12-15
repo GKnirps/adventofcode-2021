@@ -17,6 +17,16 @@ fn main() -> Result<(), String> {
         println!("There is no path, risky or otherwise. Are you sure you did not mess up your pathfinding alogorithm?");
     }
 
+    let large_cavern = expand_cavern(&cavern, 5);
+    if let Some(risk) = shortest_path(&large_cavern, 0, large_cavern.risk.len() - 1) {
+        println!(
+            "The least risky path through the large cavern has a risk value of {}",
+            risk
+        );
+    } else {
+        println!("There is no path, risky or otherwise. Are you sure you did not mess up your pathfinding alogorithm?");
+    }
+
     Ok(())
 }
 
@@ -46,6 +56,23 @@ fn shortest_path(cavern: &Cavern, start: usize, goal: usize) -> Option<u32> {
         }
     }
     None
+}
+
+fn expand_cavern(cavern: &Cavern, factor: usize) -> Cavern {
+    let source_height = cavern.risk.len() / cavern.width;
+    let width = cavern.width * factor;
+    let risk: Vec<u8> = (0..cavern.risk.len() * factor * factor)
+        .map(|i| {
+            let x = i % width;
+            let y = i / width;
+            let source_x = x % cavern.width;
+            let source_y = y % source_height;
+            let source_risk = cavern.risk[source_x + cavern.width * source_y];
+            let risk = source_risk as usize + x / cavern.width + y / source_height;
+            (if risk > 9 { risk % 10 + 1 } else { risk }) as u8
+        })
+        .collect();
+    Cavern { width, risk }
 }
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
@@ -140,5 +167,24 @@ mod test {
 
         // then
         assert_eq!(least_risk, Some(40));
+    }
+
+    #[test]
+    fn expand_cavern_wrap_around_works_for_example() {
+        // given
+        let cavern = Cavern {
+            width: 1,
+            risk: vec![8],
+        };
+
+        // when
+        let larger = expand_cavern(&cavern, 5);
+
+        // then
+        assert_eq!(larger.width, 5);
+        assert_eq!(
+            larger.risk,
+            &[8, 9, 1, 2, 3, 9, 1, 2, 3, 4, 1, 2, 3, 4, 5, 2, 3, 4, 5, 6, 3, 4, 5, 6, 7,]
+        );
     }
 }
