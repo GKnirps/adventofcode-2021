@@ -1,4 +1,5 @@
-use std::collections::HashMap;
+use std::cmp::Ordering;
+use std::collections::{BinaryHeap, HashMap};
 use std::env;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -31,31 +32,61 @@ fn main() -> Result<(), String> {
 }
 
 fn shortest_path(cavern: &Cavern, start: usize, goal: usize) -> Option<u32> {
-    // this should be some kind of priority queue, but I don't want to implement one here
-    // and std::collections::BinaryHeap is not easy to update, so I take this performance hit into
-    // account and just iterate over all values when I want to get the lowest one
-    let mut queue: HashMap<usize, u32> = HashMap::with_capacity(cavern.risk.len());
-    queue.insert(start, 0);
+    let mut queue: BinaryHeap<VerticeDistance> = BinaryHeap::with_capacity(cavern.risk.len());
+    queue.push(VerticeDistance {
+        dist: 0,
+        pos: start,
+    });
 
     let mut visited: HashMap<usize, u32> = HashMap::with_capacity(cavern.risk.len());
 
-    while let Some((v, d)) = queue.iter().map(|(v, d)| (*v, *d)).min_by_key(|(_, d)| *d) {
+    while let Some(VerticeDistance { dist: d, pos: v }) = queue.pop() {
         if v == goal {
             return Some(d);
         }
-        queue.remove(&v);
+        if visited.contains_key(&v) {
+            // since we cannot easily remove deprecated entries on the heap, we just skip them when
+            // they are popped
+            continue;
+        }
         visited.insert(v, d);
         for neighbour in cavern.von_neumann_neighbours(v) {
             if !visited.contains_key(&neighbour) {
                 let risk = d + cavern.risk[neighbour] as u32;
-                let queue_risk = queue.entry(neighbour).or_insert(risk);
-                if *queue_risk > risk {
-                    *queue_risk = risk;
-                }
+                // we can't really update the distance for a given position in the queue, but we
+                // can just add all unvisited neighbours and later skip duplicates
+                queue.push(VerticeDistance {
+                    dist: risk,
+                    pos: neighbour,
+                });
             }
         }
     }
     None
+}
+
+// This is required to use BTreeSet as halfway efficient priority queue
+#[derive(Copy, Clone, PartialEq, Eq, Debug, Hash)]
+struct VerticeDistance {
+    dist: u32,
+    pos: usize,
+}
+
+impl PartialOrd for VerticeDistance {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+// The main importance is that everything can be sorted by distance, everything else is secondary
+impl Ord for VerticeDistance {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match self.dist.cmp(&other.dist) {
+            Ordering::Equal => self.pos.cmp(&other.pos),
+            ne => ne,
+        }
+        .reverse() // reverse the ordering because BinaryHeap gives out max values first
+    }
 }
 
 fn expand_cavern(cavern: &Cavern, factor: usize) -> Cavern {
