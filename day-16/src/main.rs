@@ -13,14 +13,57 @@ fn main() -> Result<(), String> {
     let version_sum = sum_versions(&packet);
     println!("The version sum is {}", version_sum);
 
+    let result = eval(&packet);
+    println!("The evaluated result is {}", result);
+
     Ok(())
+}
+
+fn eval(packet: &Packet) -> u64 {
+    match &packet.t {
+        PacketType::Lit { data } => *data,
+        PacketType::Op { oc, sub } => {
+            let mut operands = sub.iter().map(eval);
+            match oc {
+                Opcode::Sum => operands.sum(),
+                Opcode::Prod => operands.product(),
+                // the specification did not say what to do if there is no operand for min or max, so I
+                // assume it is undefined behaviour and I can do what I want
+                Opcode::Min => operands.min().unwrap_or(0),
+                Opcode::Max => operands.max().unwrap_or(0),
+                // the specification said those three always have exactly two operands, so again I
+                // assume nasal demons are allowed if they don't
+                Opcode::Gt => {
+                    if operands.next().unwrap_or(0) > operands.next().unwrap_or(0) {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                Opcode::Lt => {
+                    if operands.next().unwrap_or(0) < operands.next().unwrap_or(0) {
+                        1
+                    } else {
+                        0
+                    }
+                }
+                Opcode::Equal => {
+                    if operands.next().unwrap_or(0) == operands.next().unwrap_or(0) {
+                        1
+                    } else {
+                        0
+                    }
+                }
+            }
+        }
+    }
 }
 
 fn sum_versions(packet: &Packet) -> u32 {
     packet.version as u32
         + match &packet.t {
-            PacketType::Op { sub } => sub.iter().map(sum_versions).sum(),
-            PacketType::Lit { data: _ } => 0,
+            PacketType::Op { sub, .. } => sub.iter().map(sum_versions).sum(),
+            PacketType::Lit { .. } => 0,
         }
 }
 
@@ -55,24 +98,36 @@ fn parse_packet(input: &[u8]) -> Result<(Packet, usize), String> {
                     read,
                 )
             }),
-            _ => parse_operator(input.get(6..).ok_or_else(|| {
-                "Unexpected end of input while reading operator packer".to_owned()
-            })?)
-            .map(|(sub, read)| {
-                (
-                    Packet {
-                        version,
-                        t: PacketType::Op { sub },
-                    },
-                    read,
-                )
-            }),
+            _ => {
+                let opcode = match *type_bits {
+                    [0, 0, 0] => Opcode::Sum,
+                    [0, 0, 1] => Opcode::Prod,
+                    [0, 1, 0] => Opcode::Min,
+                    [0, 1, 1] => Opcode::Max,
+                    [1, 0, 1] => Opcode::Gt,
+                    [1, 1, 0] => Opcode::Lt,
+                    [1, 1, 1] => Opcode::Equal,
+                    _ => panic!("unhandled type bits"),
+                };
+                parse_operator(input.get(6..).ok_or_else(|| {
+                    "Unexpected end of input while reading operator packer".to_owned()
+                })?)
+                .map(|(sub, read)| {
+                    (
+                        Packet {
+                            version,
+                            t: PacketType::Op { oc: opcode, sub },
+                        },
+                        read,
+                    )
+                })
+            }
         }?;
     Ok((packet, (6 + read_length)))
 }
 
-fn parse_literal(input: &[u8]) -> Result<(Vec<u8>, usize), String> {
-    let mut data: Vec<u8> = Vec::with_capacity(16);
+fn parse_literal(input: &[u8]) -> Result<(u64, usize), String> {
+    let mut data: u64 = 0;
     let mut more_packages = true;
     let mut offset: usize = 0;
     while more_packages {
@@ -81,7 +136,7 @@ fn parse_literal(input: &[u8]) -> Result<(Vec<u8>, usize), String> {
             .ok_or_else(|| "Unexpected end of input while reading data".to_owned())?;
         offset += 5;
         more_packages = bits[0] != 0;
-        data.push(bits[1] << 3 | bits[2] << 2 | bits[3] << 1 | bits[4]);
+        data = data << 4 | (bits[1] << 3 | bits[2] << 2 | bits[3] << 1 | bits[4]) as u64;
     }
     Ok((data, offset))
 }
@@ -144,8 +199,22 @@ struct Packet {
 
 #[derive(Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
 enum PacketType {
-    Lit { data: Vec<u8> },
-    Op { sub: Vec<Packet> },
+    // the specification said nothing about a maximal size of a number, so I originally used
+    // Vec<u8>
+    // u64 is easier to handle, so let's hope it is sufficient
+    Lit { data: u64 },
+    Op { oc: Opcode, sub: Vec<Packet> },
+}
+
+#[derive(Copy, Clone, PartialEq, PartialOrd, Eq, Ord, Debug, Hash)]
+enum Opcode {
+    Sum,
+    Prod,
+    Min,
+    Max,
+    Gt,
+    Lt,
+    Equal,
 }
 
 #[cfg(test)]
@@ -165,9 +234,7 @@ mod test {
             result,
             Ok(Packet {
                 version: 6,
-                t: PacketType::Lit {
-                    data: vec![0b0111, 0b1110, 0b0101]
-                }
+                t: PacketType::Lit { data: 2021 }
             })
         );
     }
@@ -186,16 +253,15 @@ mod test {
             Ok(Packet {
                 version: 1,
                 t: PacketType::Op {
+                    oc: Opcode::Lt,
                     sub: vec![
                         Packet {
                             version: 6,
-                            t: PacketType::Lit { data: vec![0b1010] }
+                            t: PacketType::Lit { data: 10 }
                         },
                         Packet {
                             version: 2,
-                            t: PacketType::Lit {
-                                data: vec![0b0001, 0b0100]
-                            }
+                            t: PacketType::Lit { data: 20 }
                         },
                     ]
                 }
@@ -217,18 +283,19 @@ mod test {
             Ok(Packet {
                 version: 7,
                 t: PacketType::Op {
+                    oc: Opcode::Max,
                     sub: vec![
                         Packet {
                             version: 2,
-                            t: PacketType::Lit { data: vec![0b0001] }
+                            t: PacketType::Lit { data: 1 }
                         },
                         Packet {
                             version: 4,
-                            t: PacketType::Lit { data: vec![0b0010] }
+                            t: PacketType::Lit { data: 2 }
                         },
                         Packet {
                             version: 1,
-                            t: PacketType::Lit { data: vec![0b0011] }
+                            t: PacketType::Lit { data: 3 }
                         },
                     ]
                 }
@@ -246,5 +313,17 @@ mod test {
 
         // then
         assert_eq!(result, 31);
+    }
+
+    #[test]
+    fn eval_works_for_last_example() {
+        // given
+        let packet = parse("9C0141080250320F1802104A08").expect("Expected successful parsing");
+
+        // when
+        let result = eval(&packet);
+
+        // then
+        assert_eq!(result, 1);
     }
 }
