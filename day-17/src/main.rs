@@ -1,4 +1,5 @@
 use std::cmp::min;
+use std::collections::HashSet;
 use std::env;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -17,16 +18,45 @@ fn main() -> Result<(), String> {
         println!("I can't hit the target!");
     }
 
+    let valid_velocities = count_valid_velocities(&target_area);
+    println!("There are {} valid velocities.", valid_velocities);
+
     Ok(())
 }
 
 fn find_highest_path(area: &Area) -> Option<i32> {
     // there is possibly a closed solution for that, but I'm gonna half-ass it and simulate it
+    // this range works under the (unchecked) assumption that the target area is always in the
+    // negative numbers
     (area.bottom..=(area.bottom.abs()))
         // x and y are independent, so we can search for them independently and see where they match
         .filter(|vy| t_for_y_hits(*vy, area).iter().any(|t| t_hits_x(*t, area)))
         .max()
         .map(|vy| y_at_time(vy, vy))
+}
+
+fn count_valid_velocities(area: &Area) -> usize {
+    (area.bottom..=(area.bottom.abs()))
+        .map(|vy| {
+            t_for_y_hits(vy, area)
+                .iter()
+                .map(|t| get_possible_vx(*t, area))
+                .fold(HashSet::with_capacity(128), |mut set, vx| {
+                    set.extend(vx);
+                    set
+                })
+                .len()
+        })
+        .sum()
+}
+
+fn get_possible_vx(t: i32, area: &Area) -> HashSet<i32> {
+    (0..=area.right)
+        .filter(|vx| {
+            let x = x_at_time(*vx, t);
+            x >= area.left && x <= area.right
+        })
+        .collect()
 }
 
 fn t_hits_x(t: i32, area: &Area) -> bool {
@@ -146,6 +176,23 @@ mod test {
     }
 
     #[test]
+    fn count_valid_velocities_works_for_example() {
+        // given
+        let area = Area {
+            left: 20,
+            right: 30,
+            bottom: -10,
+            top: -5,
+        };
+
+        // when
+        let result = count_valid_velocities(&area);
+
+        // then
+        assert_eq!(result, 112);
+    }
+
+    #[test]
     fn test_x_at_time() {
         // given
         let initial_velocity = 3;
@@ -160,7 +207,7 @@ mod test {
     }
 
     #[test]
-    fn test_y_at_tim() {
+    fn test_y_at_time() {
         // given
         let initial_velocity = 3;
 
