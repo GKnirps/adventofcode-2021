@@ -15,6 +15,15 @@ fn main() -> Result<(), String> {
     println!("The sum is {}", summed_numbers);
     println!("The magnitude of the sum is {}", magnitude(&summed_numbers));
 
+    if let Some(max) = max_sum_magnitude(&numbers) {
+        println!(
+            "The maximum magnitude of the sum of any two numbers is {}",
+            max
+        );
+    } else {
+        println!("The list of numbers must have been empty.");
+    }
+
     Ok(())
 }
 
@@ -33,6 +42,22 @@ impl fmt::Display for SnailfishNumber {
             SnailfishNumber::Pair(sub) => write!(f, "[{},{}]", sub.0, sub.1),
         }
     }
+}
+
+fn max_sum_magnitude(numbers: &[SnailfishNumber]) -> Option<u32> {
+    numbers
+        .iter()
+        .flat_map(|left| {
+            numbers.iter().filter_map(|right| {
+                let left = left.clone();
+                if &left != right {
+                    Some(magnitude(&add(left, right.clone())))
+                } else {
+                    None
+                }
+            })
+        })
+        .max()
 }
 
 fn magnitude(number: &SnailfishNumber) -> u32 {
@@ -384,5 +409,30 @@ mod test {
             result.to_string(),
             "[[[[6,6],[7,6]],[[7,7],[7,0]]],[[[7,7],[7,7]],[[7,8],[9,9]]]]"
         );
+    }
+
+    #[test]
+    fn max_sum_magnitude_works_for_example() {
+        // given
+        let numbers = parse(
+            r"[[[0,[5,8]],[[1,7],[9,6]]],[[4,[1,2]],[[1,4],2]]]
+[[[5,[2,8]],4],[5,[[9,9],0]]]
+[6,[[[6,2],[5,6]],[[7,6],[4,7]]]]
+[[[6,[0,7]],[0,9]],[4,[9,[9,0]]]]
+[[[7,[6,4]],[3,[1,3]]],[[[5,5],1],9]]
+[[6,[[7,3],[3,2]]],[[[3,8],[5,7]],4]]
+[[[[5,4],[7,7]],8],[[8,3],8]]
+[[9,3],[[9,9],[6,[4,9]]]]
+[[2,[[7,7],7]],[[5,8],[[9,3],[0,2]]]]
+[[[[5,2],5],[8,[3,7]]],[[5,[7,5]],[4,4]]]
+",
+        )
+        .expect("Expected successful parsing");
+
+        // when
+        let result = max_sum_magnitude(&numbers);
+
+        // then
+        assert_eq!(result, Some(3993));
     }
 }
