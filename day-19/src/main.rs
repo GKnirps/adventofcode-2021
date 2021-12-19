@@ -11,9 +11,17 @@ fn main() -> Result<(), String> {
 
     let scanner_beacons = parse(&content)?;
 
-    if let Some(matched_beacons) = match_all_scanners(&scanner_beacons) {
+    if let Some((matched_beacons, scanner_positions)) = match_all_scanners(&scanner_beacons) {
         let unique_beacons = get_unique_beacons(&matched_beacons);
         println!("There are {} unique beacons", unique_beacons.len());
+        if let Some(longest_distance) = find_longest_scanner_distance(&scanner_positions) {
+            println!(
+                "The longest distance between two scanners is {}",
+                longest_distance
+            );
+        } else {
+            println!("There seem to be no scanners to measure a distance between them");
+        }
     } else {
         println!("Unable to match all beacons. New probe required.");
     }
@@ -21,14 +29,27 @@ fn main() -> Result<(), String> {
     Ok(())
 }
 
+fn find_longest_scanner_distance(scanner_positions: &[Pos]) -> Option<i64> {
+    scanner_positions
+        .iter()
+        .flat_map(|left| {
+            scanner_positions.iter().map(|right| {
+                (left.x - right.x).abs() + (left.y - right.y).abs() + (left.z - right.z).abs()
+            })
+        })
+        .max()
+}
+
 // requires all beacons to be in the same coordinate system
 fn get_unique_beacons(scanner_beacons: &[Vec<Pos>]) -> HashSet<Pos> {
     scanner_beacons.iter().flatten().copied().collect()
 }
 
-fn match_all_scanners(scanner_beacons: &[Vec<Pos>]) -> Option<Vec<Vec<Pos>>> {
+fn match_all_scanners(scanner_beacons: &[Vec<Pos>]) -> Option<(Vec<Vec<Pos>>, Vec<Pos>)> {
     let mut matched_beacons: Vec<Vec<Pos>> = Vec::with_capacity(scanner_beacons.len());
+    let mut scanner_positions: Vec<Pos> = Vec::with_capacity(scanner_beacons.len());
     matched_beacons.push(scanner_beacons.first()?.clone());
+    scanner_positions.push(Pos::new(0, 0, 0));
     let mut reference_beacon_index: usize = 0;
 
     let mut unmatched_beacons: HashSet<&[Pos]> =
@@ -38,25 +59,27 @@ fn match_all_scanners(scanner_beacons: &[Vec<Pos>]) -> Option<Vec<Vec<Pos>>> {
         // if we can't get a new reference beacon, we can't match anything new, but we have not
         // matched all unmatched beacons yet, so we can't match all scanners
         let reference_beacon = matched_beacons.get(reference_beacon_index)?;
-        let newly_matched: Vec<(&[Pos], Vec<Pos>)> = unmatched_beacons
+        let newly_matched: Vec<(&[Pos], Vec<Pos>, Pos)> = unmatched_beacons
             .iter()
             .filter_map(|ub| {
-                match_scanners(reference_beacon, ub).map(|normalized| (*ub, normalized))
+                match_scanners(reference_beacon, ub)
+                    .map(|(normalized, scanner_pos)| (*ub, normalized, scanner_pos))
             })
             .collect();
-        for (raw, normalized) in newly_matched {
+        for (raw, normalized, scanner_pos) in newly_matched {
             unmatched_beacons.remove(raw);
             matched_beacons.push(normalized);
+            scanner_positions.push(scanner_pos);
         }
         reference_beacon_index += 1;
     }
-    Some(matched_beacons)
+    Some((matched_beacons, scanner_positions))
 }
 
 // tries to match the beacons of two scanners, for a match, at least 12 beacons must match
 // returns the second set of beacons transformed into the coordinate system of the first one on
 // success or None if they do not match
-fn match_scanners(beacons1: &[Pos], beacons2: &[Pos]) -> Option<Vec<Pos>> {
+fn match_scanners(beacons1: &[Pos], beacons2: &[Pos]) -> Option<(Vec<Pos>, Pos)> {
     // phew… I can already how this becomes a huge performance issue
     for permut_i in 0..N_PERMUTATIONS {
         for base_beacon1 in beacons1 {
@@ -69,12 +92,13 @@ fn match_scanners(beacons1: &[Pos], beacons2: &[Pos]) -> Option<Vec<Pos>> {
                     .count();
                 if matching_beacons_count >= 12 {
                     // match!
-                    return Some(
+                    return Some((
                         beacons2
                             .iter()
                             .map(|b| b.permute(permut_i) - distance)
                             .collect(),
-                    );
+                        Pos::new(0, 0, 0) - distance,
+                    ));
                 }
             }
         }
@@ -230,7 +254,8 @@ mod test {
         let result = match_scanners(&scanners[0], &scanners[1]);
 
         // then
-        assert!(result.is_some());
+        let (_, scanner_pos) = result.expect("expected match");
+        assert_eq!(scanner_pos, Pos::new(68, -1246, -43));
     }
 
     #[test]
@@ -242,9 +267,13 @@ mod test {
         let matched_scanners = match_all_scanners(&scanners);
 
         // then
-        let unique_beacons =
-            get_unique_beacons(&matched_scanners.expect("expected successful matching"));
+        let (beacons, scanner_positions) = matched_scanners.expect("expected successful matching");
+        let unique_beacons = get_unique_beacons(&beacons);
         assert_eq!(unique_beacons.len(), 79);
+        assert_eq!(
+            find_longest_scanner_distance(&scanner_positions),
+            Some(3621)
+        );
     }
 
     const EXAMPLE_INPUT: &str = r"--- scanner 0 ---
