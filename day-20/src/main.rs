@@ -18,6 +18,12 @@ fn main() -> Result<(), String> {
         twice_enhanced_image.out_of_bounds_value,
     );
 
+    let fifty_times_enhanced_image = enhance_times(twice_enhanced_image, &image_enhancement, 48);
+    println!("After fifty enhancements, {} pixels are lit, out of bounds value is {}",
+             lit_pixels(&fifty_times_enhanced_image),
+             fifty_times_enhanced_image.out_of_bounds_value,
+             );
+
     Ok(())
 }
 
