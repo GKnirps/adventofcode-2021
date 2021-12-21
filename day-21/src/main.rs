@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::env;
 use std::fs::read_to_string;
 use std::path::Path;
@@ -16,7 +17,65 @@ fn main() -> Result<(), String> {
         result
     );
 
+    let (wins1, wins2) = winning_universes(startpos1, startpos2);
+    println!(
+        "Player 1 wins in {} universes, player 2 wins in {} universes",
+        wins1, wins2
+    );
+
     Ok(())
+}
+
+// for three dices rolled, pairs of (sum of eyes, number of combinations with that sum)
+const THREE_ROLL_OUTCOMES: [(u64, u64); 7] =
+    [(3, 1), (4, 3), (5, 6), (6, 7), (7, 6), (8, 3), (9, 1)];
+
+fn winning_universes(start1: u64, start2: u64) -> (u64, u64) {
+    let mut wins1: u64 = 0;
+    let mut wins2: u64 = 0;
+    let mut ways1_by_pos_points: HashMap<(u64, u64), u64> = HashMap::with_capacity(1);
+    ways1_by_pos_points.insert((start1, 0), 1);
+    let mut ways2_by_pos_points: HashMap<(u64, u64), u64> = HashMap::with_capacity(1);
+    ways2_by_pos_points.insert((start2, 0), 1);
+    while !ways1_by_pos_points.is_empty() && !ways2_by_pos_points.is_empty() {
+        let mut next_ways1_by_pos_points: HashMap<(u64, u64), u64> =
+            HashMap::with_capacity(ways1_by_pos_points.len() * THREE_ROLL_OUTCOMES.len());
+        let mut next_ways2_by_pos_points: HashMap<(u64, u64), u64> =
+            HashMap::with_capacity(ways2_by_pos_points.len() * THREE_ROLL_OUTCOMES.len());
+        let ways2: u64 = ways2_by_pos_points.iter().map(|(_, ways)| *ways).sum();
+        for ((pos, points), ways) in ways1_by_pos_points {
+            for (roll, roll_count) in THREE_ROLL_OUTCOMES {
+                let next_pos = ((pos - 1) + roll) % 10 + 1;
+                let next_points = points + next_pos;
+                if next_points >= 21 {
+                    wins1 += ways * roll_count * ways2;
+                } else {
+                    let next_ways: &mut u64 = next_ways1_by_pos_points
+                        .entry((next_pos, next_points))
+                        .or_insert(0);
+                    *next_ways += ways * roll_count;
+                }
+            }
+        }
+        ways1_by_pos_points = next_ways1_by_pos_points;
+        let ways1: u64 = ways1_by_pos_points.iter().map(|(_, ways)| *ways).sum();
+        for ((pos, points), ways) in ways2_by_pos_points {
+            for (roll, roll_count) in THREE_ROLL_OUTCOMES {
+                let next_pos = ((pos - 1) + roll) % 10 + 1;
+                let next_points = points + next_pos;
+                if next_points >= 21 {
+                    wins2 += ways * roll_count * ways1;
+                } else {
+                    let next_ways: &mut u64 = next_ways2_by_pos_points
+                        .entry((next_pos, next_points))
+                        .or_insert(0);
+                    *next_ways += ways * roll_count;
+                }
+            }
+        }
+        ways2_by_pos_points = next_ways2_by_pos_points;
+    }
+    (wins1, wins2)
 }
 
 fn simulate(start1: u64, start2: u64) -> u64 {
@@ -88,5 +147,18 @@ mod test {
 
         // then
         assert_eq!(result, 739785);
+    }
+
+    #[test]
+    fn winning_universes_works_for_example() {
+        // given
+        let start1 = 4;
+        let start2 = 8;
+
+        // when
+        let wins = winning_universes(start1, start2);
+
+        // then
+        assert_eq!(wins, (444_356_092_776_315, 341_960_390_180_808));
     }
 }
