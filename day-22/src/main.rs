@@ -12,10 +12,24 @@ fn main() -> Result<(), String> {
 
     let cubes = parse(&content)?;
 
-    let initialization_cubes: Vec<Cube> = cubes.iter().filter(|cube| cube.from_x >= -50 && cube.from_y >= -50 && cube.from_z >= -50 && cube.to_x <= 50 && cube.to_y <= 50 && cube.to_z <= 50).cloned().collect();
+    let initialization_cubes: Vec<Cube> = cubes
+        .iter()
+        .filter(|cube| {
+            cube.from_x >= -50
+                && cube.from_y >= -50
+                && cube.from_z >= -50
+                && cube.to_x <= 50
+                && cube.to_y <= 50
+                && cube.to_z <= 50
+        })
+        .cloned()
+        .collect();
 
     let init_cells_on = on_cells(&initialization_cubes);
     println!("After initialization, {} cubes are on", init_cells_on);
+
+    let cells_on = on_cells(&cubes);
+    println!("After a full run, {} cubes are on", cells_on);
 
     Ok(())
 }
