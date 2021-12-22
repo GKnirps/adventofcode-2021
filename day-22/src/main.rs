@@ -47,7 +47,7 @@ fn non_overwritten_cells(cube: &Cube, overwrites: &[Cube]) -> i64 {
     if let Some(next_overwrite) = overwrites.first() {
         non_overwritten_cubes(cube, next_overwrite)
             .iter()
-            .map(|splinter| non_overwritten_cells(&splinter, overwrites.get(1..).unwrap_or(&[])))
+            .map(|splinter| non_overwritten_cells(splinter, overwrites.get(1..).unwrap_or(&[])))
             .sum()
     } else {
         cube.volume()
@@ -74,12 +74,12 @@ fn non_overwritten_cubes(cube: &Cube, overwrite: &Cube) -> HashSet<Cube> {
                 ] {
                     let c = Cube {
                         on: cube.on,
-                        from_x: from_x,
-                        to_x: to_x,
-                        from_y: from_y,
-                        to_y: to_y,
-                        from_z: from_z,
-                        to_z: to_z,
+                        from_x,
+                        to_x,
+                        from_y,
+                        to_y,
+                        from_z,
+                        to_z,
                     };
                     if c.from_x != overwrite.from_x
                         || c.to_x != overwrite.to_x
@@ -158,7 +158,7 @@ fn parse_line(line: &str) -> Result<Cube, String> {
             line
         ));
     };
-    let mut ranges = coords.splitn(3, ",");
+    let mut ranges = coords.splitn(3, ',');
     let (from_x, to_x) = parse_range(
         ranges
             .next()
