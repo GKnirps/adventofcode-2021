@@ -19,6 +19,16 @@ fn main() -> Result<(), String> {
         println!("There is no way to get these amphipods to the right rooms.");
     }
 
+    let large_burrow = create_large_burrow(&initial_pos);
+    if let Some(least_energy) = find_least_energy(&large_burrow) {
+        println!(
+            "The least energy to sort all amphipods in the larger burrow is {}",
+            least_energy
+        );
+    } else {
+        println!("There is no way to sort this large burrow.");
+    }
+
     Ok(())
 }
 
@@ -200,7 +210,7 @@ struct Burrow<const SIZE: usize, const N_AMPHIPODS: usize> {
 }
 
 // create a small burrow (puzzle 1)
-// positions are like this
+// positions are like this:
 // #############
 // #01.2.3.4.56#
 // ###7#9#b#d###
@@ -243,6 +253,81 @@ fn create_small_burrow(input_positions: &[usize; 8]) -> Burrow<15, 2> {
             vec![(13, 1)],
         ],
         target_positions: [[7, 8], [9, 10], [11, 12], [13, 14]],
+    }
+}
+
+// create a larger Burrow (puzzle 2)
+// positions are like this:
+// #############
+// #01.2.3.4.56#
+// ###7#b#f#j###
+//   #8#c#g#k#
+//   #9#d#h#l#
+//   #a#e#i#m#
+//   #########
+fn create_large_burrow(input_positions: &[usize; 8]) -> Burrow<23, 4> {
+    Burrow {
+        initial_state: [
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            None,
+            Some(input_positions[0]),
+            Some(3),
+            Some(3),
+            Some(input_positions[1]),
+            Some(input_positions[2]),
+            Some(2),
+            Some(1),
+            Some(input_positions[3]),
+            Some(input_positions[4]),
+            Some(1),
+            Some(0),
+            Some(input_positions[5]),
+            Some(input_positions[6]),
+            Some(0),
+            Some(2),
+            Some(input_positions[7]),
+        ],
+        layout: [
+            // hallway
+            vec![(1, 1)],
+            vec![(0, 1), (2, 2), (7, 2)],
+            vec![(1, 2), (3, 2), (7, 2), (11, 2)],
+            vec![(2, 2), (4, 2), (11, 2), (15, 2)],
+            vec![(3, 2), (5, 2), (15, 2), (19, 2)],
+            vec![(4, 2), (6, 1), (19, 2)],
+            vec![(5, 1)],
+            // room A
+            vec![(1, 2), (2, 2), (8, 1)],
+            vec![(7, 1), (9, 1)],
+            vec![(8, 1), (10, 1)],
+            vec![(9, 1)],
+            // room B
+            vec![(2, 2), (3, 2), (12, 1)],
+            vec![(11, 1), (13, 1)],
+            vec![(12, 1), (14, 1)],
+            vec![(13, 1)],
+            // room C
+            vec![(3, 2), (4, 2), (16, 1)],
+            vec![(15, 1), (17, 1)],
+            vec![(16, 1), (18, 1)],
+            vec![(17, 1)],
+            // room D
+            vec![(4, 2), (5, 2), (20, 1)],
+            vec![(19, 1), (21, 1)],
+            vec![(20, 1), (22, 1)],
+            vec![(21, 1)],
+        ],
+        target_positions: [
+            [7, 8, 9, 10],
+            [11, 12, 13, 14],
+            [15, 16, 17, 18],
+            [19, 20, 21, 22],
+        ],
     }
 }
 
