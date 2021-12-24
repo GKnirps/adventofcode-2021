@@ -14,8 +14,11 @@ fn main() -> Result<(), String> {
 
     let parameters = find_parameters_per_phase(&program)?;
 
-    if let Some(largest_model_number) = brute_force_model_number(&parameters) {
+    if let Some((largest_model_number, smallest_model_number)) =
+        brute_force_model_number(&parameters)
+    {
         println!("Largest valid model number: {}", largest_model_number);
+        println!("Smallest valid model number: {}", smallest_model_number);
     } else {
         println!("There are no valid model numbers");
     }
@@ -24,17 +27,23 @@ fn main() -> Result<(), String> {
 }
 
 // I'm goint to regret brute forcing it but I'm tired and I want a solution
-fn brute_force_model_number(parameters: &[(i64, i64, i64)]) -> Option<i64> {
-    let mut number_by_z: HashMap<i64, i64> = HashMap::with_capacity(1);
-    number_by_z.insert(0, 0);
+fn brute_force_model_number(parameters: &[(i64, i64, i64)]) -> Option<(i64, i64)> {
+    let mut number_by_z: HashMap<i64, (i64, i64)> = HashMap::with_capacity(1);
+    number_by_z.insert(0, (0, 0));
     for (a, b, c) in parameters {
-        let mut new_z_map: HashMap<i64, i64> = HashMap::with_capacity(number_by_z.len() * 9);
-        for (z, model_number) in number_by_z {
+        let mut new_z_map: HashMap<i64, (i64, i64)> = HashMap::with_capacity(number_by_z.len() * 9);
+        for (z, (min_model_number, max_model_number)) in number_by_z {
             for input in 1..=9 {
                 let new_z = simulate_block(z, *a, *b, *c, input);
-                let new_number = model_number * 10 + input;
-                let entry = new_z_map.entry(new_z).or_insert(new_number);
-                *entry = cmp::max(*entry, new_number)
+                let new_min_number = min_model_number * 10 + input;
+                let new_max_number = max_model_number * 10 + input;
+                let entry = new_z_map
+                    .entry(new_z)
+                    .or_insert((new_min_number, new_max_number));
+                *entry = (
+                    cmp::min(entry.0, new_min_number),
+                    cmp::max(entry.1, new_max_number),
+                );
             }
         }
         number_by_z = new_z_map;
@@ -43,8 +52,8 @@ fn brute_force_model_number(parameters: &[(i64, i64, i64)]) -> Option<i64> {
         .iter()
         .filter(|(z, _)| **z == 0)
         .map(|(_, number)| number)
-        .max()
         .copied()
+        .reduce(|(min1, max1), (min2, max2)| (cmp::min(min1, min2), cmp::max(max1, max2)))
 }
 
 // simulate the repeating block (as seen in my input, see find_parameters_per_phase below)
